@@ -1,0 +1,43 @@
+---
+# tasks file for check_docker
+- name: Install yum utils
+  yum:
+    name: yum-utils
+    state: present
+
+- name: Add docker repo
+  shell: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+  register: repo
+  failed_when: repo.rc != 0
+  changed_when: false
+
+- name: Install Docker
+  yum:
+    name: "{{ packages }}"
+    state: present
+  with_items: "{{ packages }}"
+
+- name: Gathering service facts
+  service_facts:
+
+- set_fact:
+    docker_service_state: ansible_facts.services["docker.service"].state
+    docker_service_status: ansible_facts.services["docker.service"].status
+
+- name: Start Docker service
+  service:
+    name: docker
+    state: started
+    enabled: yes
+  when: docker_service_state != "started"
+
+- name: Start Docker service
+  service:
+    name: docker
+    enabled: yes
+  when: docker_service_state != "enabled"
+
+- debug:
+    var: "{{docker_service_state}}"
+- debug:
+    var: "{{docker_service_status}}"
