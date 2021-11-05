@@ -1,0 +1,69 @@
+---
+# tasks file for app_deploy
+- name: Check if application exists
+  stat:
+    path: "{{ app_path }}"
+  register: app_location
+
+- name: Check path "{{ app_path }}"
+  file:
+    path: "{{ app_path }}"
+    state: directory
+    mode: 0777
+  when: not app_location.stat.exists
+
+- name : Deploy app
+  copy:
+    src: files/
+    dest: "{{ app_path }}"
+  when: not app_location.stat.exists
+
+- name: Check if the image exists
+  shell: docker image ls | grep "{{app_name}}"
+  register: docker_app_image
+  changed_when: false
+  failed_when: false
+
+- name: Build docker image
+  shell: docker build -t "{{app_name}}" "{{app_dockerfile_path}}"
+  register: app
+  failed_when: app.rc != 0
+  changed_when: false
+  when: docker_app_image.stdout | length == 0
+
+- name: Check if port "{{app_port}}" is used by another container
+  shell: docker container ls | grep "{{app_port}}"
+  register: container_port
+#  ignore_errors: yes
+  changed_when: false
+  failed_when: false
+
+- assert:
+    that:
+      - container_port.rc != 0  
+    fail_msg: "FAIL: Another container is allready running on port {{app_port}}.The running container is not using the image for {{app_name}}"
+
+- name: Start app in container
+  shell: docker run -dp "{{app_port}}":"{{app_port}}" "{{app_name}}"
+  register: app_container
+  failed_when: app_container.rc != 0
+  changed_when: false
+
+- name: Get firewall zone from system
+  shell: firewall-cmd --get-default-zone
+  register: firewall_zone
+  changed_when: false
+
+- debug:
+    var: firewall_zone.stdout
+
+- name: Open port "{{app_port}}" for zone "{{firewall_zone.stdout}}"
+  firewalld:
+    permanent: yes
+    immediate: yes
+    port: "{{item.port}}/{{item.proto}}"
+    state: "{{item.state}}"
+    zone: "{{item.zone}}"
+  with_items:
+  - {port: "{{app_port}}", proto: "tcp", state: "enabled", zone: "{{firewall_zone.stdout}}" }
+

@@ -1,0 +1,6 @@
+---
+# vars file for app_deploy
+app_name: bosch_app
+app_path: /srv/test_app
+app_port: 3000
+app_dockerfile_path: /srv/test_app/app
