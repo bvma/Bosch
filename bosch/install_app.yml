@@ -1,0 +1,8 @@
+---
+
+- hosts: all
+  roles:
+    - pre-checks
+    - check_docker
+    - app_deploy
+    - check_app
